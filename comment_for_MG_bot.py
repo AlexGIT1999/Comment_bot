@@ -1,26 +1,19 @@
 import logging
+import json
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
-
-# Данные прямо в коде
-BOT_TOKEN = "8442080104:AAHL_sS3l1ovVZXKmCNTCVleBaI6wMoa2G0"
-CHANNEL_ID = -1002919189052
-RULES_TEXT = """📖 <b>Правила обсуждения поста</b>
-
-Перед тем как оставить комментарий, пожалуйста, ознакомьтесь с правилами:
-
-<a href="https://graph.org/Pravila-povedeniya-v-kanale-MagistraliZakrytyj-klub-09-29">📜 Полные правила канала</a>
-
-🔗 <b>Полезные ссылки:</b>
-
-<a href="https://t.me/Alexey_Afonin99">📞 Связь с админом</a>
-<a href="https://t.me/magistrali_support_bot">💬 Бот поддержки</a>
-
-<i>Приятного общения!</i>"""
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Загрузка конфигурации
+with open('config.json', 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
+BOT_TOKEN = config['bot_token']
+CHANNEL_ID = config['channel_id']
+RULES_TEXT = config['rules_text']
 
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обрабатывает посты из канала и добавляет комментарий с правилами"""
@@ -37,10 +30,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
             logger.info("✅ Это пост из нашего канала!")
             
             # Отправляем ответ на этот пост (комментарий) с HTML разметкой
-            rules_message = await message.reply_text(
-                RULES_TEXT, 
-                parse_mode='HTML'
-            )
+            rules_message = await message.reply_text(RULES_TEXT, parse_mode='HTML')
             
             # Закрепляем наш комментарий
             await context.bot.pin_chat_message(

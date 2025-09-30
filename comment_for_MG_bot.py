@@ -15,6 +15,9 @@ BOT_TOKEN = config['bot_token']
 CHANNEL_ID = config['channel_id']
 RULES_TEXT = config['rules_text']
 
+# Словарь для отслеживания обработанных групп медиа
+processed_media_groups = {}
+
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обрабатывает посты из канала и добавляет комментарий с правилами"""
     try:
@@ -27,19 +30,47 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
             message.sender_chat and 
             message.sender_chat.id == CHANNEL_ID):
             
-            logger.info("✅ Это пост из нашего канала!")
+            # Получаем ID группы медиа (если есть) или ID сообщения
+            media_group_id = getattr(message, 'media_group_id', None)
+            if media_group_id:
+                # Это часть альбома медиа
+                post_key = f"media_group_{media_group_id}"
+            else:
+                # Одиночное сообщение
+                if hasattr(message, 'forward_from_message_id'):
+                    post_key = f"post_{message.forward_from_message_id}"
+                else:
+                    post_key = f"msg_{message.message_id}"
             
-            # Отправляем ответ на этот пост (комментарий) с HTML разметкой
-            rules_message = await message.reply_text(RULES_TEXT, parse_mode='HTML')
+            logger.info(f"Обнаружен пост. Ключ: {post_key}, ID медиа-группы: {media_group_id}")
             
-            # Закрепляем наш комментарий
-            await context.bot.pin_chat_message(
-                chat_id=message.chat.id,
-                message_id=rules_message.message_id,
-                disable_notification=True
-            )
-            
-            logger.info("✅ Комментарий с правилами добавлен и закреплен!")
+            # Проверяем, не обрабатывали ли мы уже этот пост/альбом
+            if post_key not in processed_media_groups:
+                logger.info(f"✅ Новый пост/альбом! Добавляем правила...")
+                
+                # Отправляем ответ на этот пост (комментарий) с HTML разметкой
+                rules_message = await message.reply_text(
+                    RULES_TEXT, 
+                    parse_mode='HTML'
+                )
+                
+                # Закрепляем наш комментарий
+                await context.bot.pin_chat_message(
+                    chat_id=message.chat.id,
+                    message_id=rules_message.message_id,
+                    disable_notification=True
+                )
+                
+                # Помечаем пост как обработанный
+                processed_media_groups[post_key] = True
+                logger.info(f"✅ Комментарий с правилами добавлен для {post_key}!")
+                
+                # Ограничиваем размер словаря
+                if len(processed_media_groups) > 1000:
+                    oldest_key = next(iter(processed_media_groups))
+                    del processed_media_groups[oldest_key]
+            else:
+                logger.info(f"⏩ Пост {post_key} уже обработан, пропускаем...")
             
     except Exception as e:
         logger.error(f"❌ Ошибка: {e}")
